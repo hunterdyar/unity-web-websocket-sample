@@ -1,19 +1,19 @@
-﻿@page "/store/{storeid?}"
+﻿@page "/store/{storeID?}"
 @using ws_server_web.Components.Layout
 
-<PageTitle>@storeid | Clayze Server Data</PageTitle>
+<PageTitle>@storeID | Clayze Server Data</PageTitle>
 
-<DataStoreViewLayout StoreID="@storeid"></DataStoreViewLayout >
+<GameDataViewLayout StoreID="@storeID"></GameDataViewLayout> >
 
 @code{
 
 [Parameter]
-public string? storeid { get; set; }
+public string? storeID { get; set; }
 
 protected override void OnParametersSet()
 {
-    //if this hasn't been set, just look for test.
-    storeid = storeid ?? "test";
+    //if this hasn't been set, just look for test oune
+    storeID = storeID ?? "test";
 }
 
 }

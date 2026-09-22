@@ -25,7 +25,7 @@ app.UseWebSockets();
 //Create a datastore and an endpoint for our list.
 foreach (string storeID in endpoints)
 {
-    DataStoreHub.CreateDataStore(storeID, new ListDataStore<byte[]>());
+    DataStoreHub.CreateDataStore(storeID, new GameData());
 
     app.Map(storeID, async context =>
     {

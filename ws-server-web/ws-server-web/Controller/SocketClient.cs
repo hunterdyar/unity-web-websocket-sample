@@ -1,4 +1,5 @@
 ﻿using System.Net.WebSockets;
+using System.Text;
 using ws_server_web.Datashare;
 using ws_server_web.Models;
 
@@ -6,25 +7,19 @@ namespace ws_server_web;
 
 public class SocketClient : WebSocketController
 {
-	private static Action<byte[], string> OnEvent;
-	private static readonly byte[] ConfirmChangePacket = new []{ (byte)MessageType.ChangeConfirm };
+	private static Action<string, string> OnEvent;
 
 	//this datastore needs to get initialized in program and a reference injected to here.
-	private ListDataStore<byte[]> _dataStore;
+	private GameData _gameData;
 	private string storeID;
 	public SocketClient(WebSocket socket, string storeID) : base(socket)
 	{
 		//configure actions/events. ours and the datastore.
 		OnEvent+= OnEventFromAnyClient;
 		
-		if (DataStoreHub.TryGetDataStore(storeID, out ListDataStore<byte[]> ds))
+		if (DataStoreHub.TryGetDataStore(storeID, out GameData gameData))
 		{
-			_dataStore = ds;
-			_dataStore.OnItemAdded += OnItemAddedFromOtherClient;
-			_dataStore.OnItemRemoved += OnItemRemovedFromOtherClient;
-			_dataStore.OnItemChanged += OnItemChangedFromOtherClient;
-			_dataStore.OnAllClientsUpdateAll += OnAllClientsUpdateAll;
-			_dataStore.OnClear += OnClear;
+			_gameData = gameData;
 			this.storeID = storeID;
 		}
 		else
@@ -33,142 +28,145 @@ public class SocketClient : WebSocketController
 		}
 	}
 
-	private async void OnEventFromAnyClient(byte[] data, string client)
+	private async void OnEventFromAnyClient(string data, string client)
 	{
+		//WE are clientID, so skip replying to ourselves.
 		if (client != ClientID)
 		{
-			//note: byte 0 is the 'event' message type. We assume this and pass along.
 			await Send(data);
 		}
 	}
 
-	private async void OnAllClientsUpdateAll()
+	private async void OnClientChanged(ClientData clientData, string client)
 	{
-		await SendAllData();
-	}
-
-	private async void OnClear(string client)
-	{
-		if (client == ClientID)
-		{
-			return;
-		}
-
-		await Send(new []{(byte)MessageType.Clear});
-	}
-
-	private async void OnItemAddedFromOtherClient(uint itemID, byte[] data, string client)
-	{
-		//we added this! ignore!
-		if (client == ClientID)
-		{
-			return;
-		}
-
-		//todo: the first 4 bytes should be the id, and we should save it. (uint is 32 bits = 4 bytes)
-		var packet = new byte[data.Length + 5];
-		packet[0] = (byte)MessageType.Add; //set message
-		BitConverter.GetBytes(itemID).CopyTo(packet, 1); //set id.
-		data.CopyTo(packet, 5); //copy the rest over after the id.
-		await Send(packet);
-	}
-
-	private async void OnItemChangedFromOtherClient(uint itemID, byte[] data, string client)
-	{
-		//we added this! ignore!
+		//it's us! ignore! we are authoritative
 		if (client == ClientID)
 		{
 			return;
 		}
 		
-		var packet = new byte[data.Length + 5];
-		packet[0] = (byte)MessageType.Change; //set message
-		BitConverter.GetBytes(itemID).CopyTo(packet, 1); //set id.
-		data.CopyTo(packet, 5); //copy the rest.
-		await Send(packet);
+		//pass the server-updated change (from other client) along to our client (the other device/target/application/unity)
+
+		var m = new Message()
+		{
+			type = MessageType.ClientSendsUpdate,
+			ClientData = clientData,
+			clientID = client,//the client to update, in this case.
+			ServerData = null,
+		};
+		
+		await Send(m.ToJson());
 	}
 
-	private async void OnItemRemovedFromOtherClient(uint itemID, string client)
+	private async void OnServerChanged(ServerData serverData)
 	{
-		if (client == ClientID)
+		//pass along the server-updated change.
+		var m = new Message()
 		{
-			return;
-		}
-
-		var packet = new byte[5];
-		packet[0] = (byte)MessageType.Remove; //set message
-		BitConverter.GetBytes(itemID).CopyTo(packet, 1); //set id.
-		await Send(packet);
+			type = MessageType.ServerUpdate,
+			ServerData = serverData,
+			clientID = ClientID,//let the world know who is passing this along so we don't keep updating ourselves
+		};
+		await Send(m.ToJson());
 	}
 	
-	protected override async Task OnReceive(byte[] data)
+	protected override async Task OnReceive(string data)
 	{
 		if (data.Length == 0)
 		{
 			return;
 		}
-		var messageType = (MessageType)data[0];
 
-		switch (messageType)
+		var m = Message.GetFromJson(data);
+		if (m.type == MessageType.Error)
 		{
-			case MessageType.Echo:
-				await Send(data);
+			//give up? report? crash? idk
+			return;
+		}
+		//remember, this is data coming from the clients to the server. The action hooks (await Send()) are how we send data out to clients.
+		switch (m.type)
+		{
+			case MessageType.GetClientData:
+				//client is asking for data. reply with the data.
+				string requestedID = m.clientID;
+				if (_gameData.clientData.TryGetValue(requestedID, out var clientData))
+				{
+					await Send(new Message()
+					{
+						type = MessageType.ClientSendsUpdate,
+						ClientData = clientData,
+					}.ToJson());
+				}
+				else
+				{
+					//can't give you your data :(
+					await Send(new Message()
+					{
+						type = MessageType.Error,
+					}.ToJson());
+				}
 				break;
-			case MessageType.Add:
+			case MessageType.GetServerData:
+				//i don't need to ask who asked, anybody who wants server data can get it.
+				//we reply with the 'server update' message.
+				await Send(new Message()
+				{
+					type = MessageType.ServerUpdate,
+					ServerData = _gameData.serverData,
+				}.ToJson());
+				break;
+			case MessageType.ServerUpdate:
+				if (m.ServerData == null)
+				{
+					//invalid message!
+					return;
+				}
+
+				if (m.clientID == ClientID)
+				{
+					return;
+				}
+				//tbh in this model of the game, the server _isn't_ supposed to get updated by clients?
+				//what client is telling us server information?
+				//but like, we write an admin role? moved game logic to whichever client hit "finish round" first? idk
+				_gameData.UpdateServerData(m.ServerData);
+				break;
+			case MessageType.SetClient:
+				//a different client has been changed.
+				//if our game model is that the client doesn't know about other clients, we ignore this message.
+				//otherwise... we just do the same thing as the ClientSendUpdate case, without the guard check, and pass it along.
+				break;
+			case MessageType.ClientSendsUpdate:
 				//remove instruction byte and add.
-				var message = new byte[data.Length - 1];
-				Array.ConstrainedCopy(data, 1, message, 0, data.Length - 1);
-				var id = _dataStore.AddItem(message, ClientID);
-				var packet = new byte[5];
-				BitConverter.GetBytes(id).CopyTo(packet, 1);
-				packet[0] = (byte)MessageType.IDReply;
-				await Send(packet);
+				if (ClientID != m.clientID)
+				{
+					//this client is trying to update someone else! should that be allowed? I don't know, this is a sample!
+					_gameData.SetClientData(m.clientID, m.ClientData);
+
+				}
+				else
+				{
+					_gameData.SetClientData(m.clientID, m.ClientData);
+				}
+
 				break;
-			case MessageType.Change:
-				//[change][id][newData]
-				var idbytes = new ArraySegment<byte>(data, 1, 4);
-				id = BitConverter.ToUInt32(idbytes);
-				message = new byte[data.Length - 5];
-				Array.ConstrainedCopy(data, 5, message, 0, data.Length - 5);
-				_dataStore.ChangeItem(id,message, ClientID);
-				await Send(ConfirmChangePacket);
-				break;
-			case MessageType.Remove:
-				idbytes = new ArraySegment<byte>(data, 1, 4);
-				id = BitConverter.ToUInt32(idbytes);
-				_dataStore.RemoveItem(id,ClientID);
-				break;
-			case MessageType.GetAll:
-				//asked for all data. reply with all data.
-				await SendAllData();
-				break;
-			case MessageType.Clear:
-				_dataStore.Clear(ClientID);
+			case MessageType.ClientRemoved:
+				if (ClientID != m.clientID)
+				{
+					_gameData.RemoveClient(m.clientID);
+				}
+				else
+				{
+					//we should reply with an error? but for now we will just always do what we are told. hackers, REJOICE
+					_gameData.RemoveClient(m.clientID);
+				}
 				break;
 			case MessageType.Event:
+				//raw data sent along to all clients. no server data, no nothing.
+				//we maybe technically sort of  _ONLY_ need this one to make a working game, it's just weird and messy.
 				OnEvent?.Invoke(data,ClientID);
 				break;
 		}
-	}
-
-
-	private async Task SendAllData()
-	{
-		if (_dataStore == null)
-		{
-			Console.WriteLine("data store null? shit!");
-			return;
-		}
-		var allDataSet = _dataStore.GetAllRawData();
-		List<byte> allData = new List<byte>();
-		allData.Add((byte)MessageType.GetAll);
-		foreach (var item in allDataSet)
-		{
-			allData.AddRange(BitConverter.GetBytes(item.Item1));
-			allData.AddRange(item.Item2);
-		}
-
-		await Send(allData.ToArray());
 	}
 
 	protected override void OnHandleStart()

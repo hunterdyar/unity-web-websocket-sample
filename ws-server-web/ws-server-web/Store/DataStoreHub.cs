@@ -1,18 +1,16 @@
 ﻿namespace ws_server_web.Datashare;
 
-//a datastore is the container for our data.
-//in this sample, i've only implemented a generic 'list data store'. it's our database.
-//this 'hub' gives us all the different storage containers.
+//a datastore is the container for all of our databases ('game data')
+//so we can have multiple sessions running from one server.
 
-//this is separate from 'events', which we implement in the socket handler (SocketClient)
-
+//this class is basically a wrapper around a dictionary of 'GameData's (and you can replace that type, but not worry about this one changing.
 
 public static class DataStoreHub
 {
 	public static string[] AllStores => DataStores.Keys.ToArray();
 	public static Action<string,int> OnConnectionChanged;
 	public static Dictionary<string, int> Connections = new Dictionary<string, int>();
-	public static Dictionary<string, IDataStore> DataStores = new Dictionary<string, IDataStore>();
+	public static Dictionary<string, GameData> DataStores = new Dictionary<string, GameData>();
 
 	public static bool TryGetDataStore<T>(string storeid, out T store)
 	{
@@ -29,7 +27,7 @@ public static class DataStoreHub
 		return false;
 	}
 
-	public static void CreateDataStore(string id, IDataStore store)
+	public static void CreateDataStore(string id, GameData store)
 	{
 		DataStores.Add(id,store);
 	}

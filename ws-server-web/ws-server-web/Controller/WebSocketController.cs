@@ -16,8 +16,9 @@ public class WebSocketController
 		_webSocket = webSocket;
 		ClientID = Guid.NewGuid().ToString();
 		
-		//the buffer needs to be large enough to hold the largest data that will be sent at once.
-		Buffer = new ArraySegment<byte>(new byte[64*64*64*4]);
+		//the buffer needs to be large enough to hold the largest data that will be sent at once. I have no clue what that will be!
+		//utf8 is basically 8 bits per character, so this should be plenty, and then 32 times that plenty.
+		Buffer = new ArraySegment<byte>(new byte[8*1024*32]);
 	}
 	public async Task Handle()
 	{
@@ -29,7 +30,8 @@ public class WebSocketController
 			if (receiveResult.EndOfMessage)
 			{
 				var data = Buffer.Slice(0, receiveResult.Count).ToArray();
-				await OnReceive(data);
+				var content = System.Text.Encoding.UTF8.GetString(data);
+				await OnReceive(content);
 			}
 
 			if (receiveResult.MessageType == WebSocketMessageType.Close)
@@ -49,18 +51,19 @@ public class WebSocketController
 	{
 	}
 
-	protected virtual async Task OnReceive(byte[] data)
+	protected virtual async Task OnReceive(string data)
 	{
-		Console.WriteLine("Received." + data.Length);
+		Console.WriteLine("Received" + data.Length);
 	}
 
-	public async Task Send(byte[] packet)
+	public async Task Send(string packet)
 	{
-		var data = new ArraySegment<byte>(packet);
+		// var data = new ArraySegment<byte>(packet);
 		if (_webSocket.State != WebSocketState.Open)
 		{
 			return;
 		}
-		await _webSocket.SendAsync(data, WebSocketMessageType.Binary, true,CancellationToken.None);
+		
+		await _webSocket.SendAsync(System.Text.Encoding.UTF8.GetBytes(packet), WebSocketMessageType.Text, true, CancellationToken.None);
 	}
 }

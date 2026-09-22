@@ -10,13 +10,9 @@
 <p>Active Connected Clients: @_activeConnections</p>
 <p>This is the current data held on the server at the "test" endpoint. It does not refresh automatically. All data is lost when the server crashes or restarts.</p>
 
-Download Current: <button @onclick="OnDownloadButton">Download</button><br />
-Set From JSON:
-<InputFile OnChange="OnLoadFile"/> 
 <hr />
-<button @onclick="OnClearButton">Clear</button>
 
-@if (dataStore == null)
+@if (_gameData == null)
 {
 <p>
     <em>Loading...</em>
@@ -24,28 +20,49 @@ Set From JSON:
 }
 else
 {
+    <h2>Server</h2>
+    if (_gameData.serverData != null)
+    {
+        <ul>
+            <li>Round: @_gameData.serverData.Round</li>
+            <li>RoundState: @_gameData.serverData.roundState.ToString()</li>
+        </ul>
+        <p>Scores</p>
+        <ul>
+            @foreach (var score in _gameData.serverData.Scores)
+        {
+                <li>@score.id: @score.data</li>
+            }
+        </ul>
+    }
+    else
+    {
+        <p>No server data</p>
+    }
+
+    <h2>Clients</h2>
 <table class="table">
     <thead>
     <tr>
-        <th>Item id</th>
+        <th>Client ID</th>
+        <th>Favorite Number</th>
         <th>Message (utf8)</th>
     </tr>
     </thead>
     <tbody>
-    @foreach (var itemPair in dataStore.GetAllRawData())
+    @foreach (var cd in _gameData.clientData.Values)
     {
     <tr>
-        <td>
-            <button @onclick="@(e=>OnRemoveItem(@itemPair.Item1))">x</button>
-        </td>
-        <td>@itemPair.Item1</td>
-        <td>@itemPair.Item2.PrettyPrint()</td>
+        <td>@cd.clientID</td>
+        <td>@cd.favoriteNumber</td>
+        <td>@cd.message</td>
     </tr>
     }
     </tbody>
 </table>
 }
 <script>
+    //todo: this doesn't work yet.
     window.downloadFileFromStream = async (fileName, contentStreamReference) => {
       const arrayBuffer = await contentStreamReference.arrayBuffer();
       const blob = new Blob([arrayBuffer]);
@@ -63,13 +80,20 @@ else
     [Parameter]
     public string StoreID { get; set; }
     private string ConnectionURL;
-    private ListDataStore<byte[]> dataStore;
+    private GameData? _gameData;
     private int _activeConnections;
 
     protected override async Task OnInitializedAsync()
     {
-        DataStoreHub.TryGetDataStore(StoreID, out dataStore);
-        dataStore.OnItemAdded += OnItemAdded;
+        DataStoreHub.TryGetDataStore(StoreID, out _gameData);
+        if (_gameData == null)
+        {
+            //uh oh! uh, we can update the page to say 'error' or something i guess.
+            return;
+        }
+
+        _gameData.OnClientChanged += OnClientChanged;
+        _gameData.OnServerChanged += OnServerChanged;
         if (DataStoreHub.Connections.TryGetValue(StoreID, out int v))
         {
             _activeConnections = v;
@@ -87,6 +111,17 @@ else
         
     }
 
+    private void OnServerChanged()
+    {
+        //just brute refresh the whole content
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnClientChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
     private void OnConnectionChanged(string id, int newDelta)
     {
         if (StoreID == id)
@@ -96,40 +131,4 @@ else
 
         InvokeAsync(StateHasChanged);
     }
-
-
-    private void OnItemAdded(uint arg1, byte[] arg2, string arg3)
-    {
-        InvokeAsync(StateHasChanged);
-    }
-
-    private async Task OnRemoveItem(uint id)
-    {
-        //all webpages can have the same ID, because they always update on any change.
-        dataStore.RemoveItem(id, "webpage");
-    }
-    
-    private async Task OnDownloadButton()
-    {
-        //all webpages can have the same ID, because they always update on any change.
-        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(dataStore.Serialize()));
-        string filename = StoreID + ".json";//yyyymmdd-hhmmss
-        using var streamRef = new DotNetStreamReference(stream: stream);
-        await JS.InvokeVoidAsync("downloadFileFromStream", filename, streamRef);
-    }
-
-    private async Task OnLoadFile(InputFileChangeEventArgs e)
-    {
-        var stream = e.File.OpenReadStream();
-        var buffer = new byte[stream.Length];
-        var result = await stream.ReadAsync(buffer);
-        var x = dataStore.Deserialize(Encoding.UTF8.GetString(buffer));
-    }
-    
-    private async Task OnClearButton()
-    { 
-        dataStore.Clear("webpage");
-    }
-
-    
 }
