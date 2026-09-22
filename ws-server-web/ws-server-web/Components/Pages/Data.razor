@@ -1,0 +1,19 @@
+﻿@page "/store/{storeid?}"
+@using ws_server_web.Components.Layout
+
+<PageTitle>@storeid | Clayze Server Data</PageTitle>
+
+<DataStoreViewLayout StoreID="@storeid"></DataStoreViewLayout >
+
+@code{
+
+[Parameter]
+public string? storeid { get; set; }
+
+protected override void OnParametersSet()
+{
+    //if this hasn't been set, just look for test.
+    storeid = storeid ?? "test";
+}
+
+}

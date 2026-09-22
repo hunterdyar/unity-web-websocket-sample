@@ -1,0 +1,33 @@
+﻿@page "/"
+@using ws_server_web.Datashare
+@using ws_server_web.Models
+@using ws_server_web.Components.Layout
+@attribute [StreamRendering]
+
+<PageTitle>Clayze Server Data</PageTitle>
+<h1>WS Server</h1>
+<p>This webapp is currently a debug view of the current content. This webapp is contained in the same project as the server. It
+    was made using <a href="https://dotnet.microsoft.com/en-us/apps/aspnet/web-apps/blazor" target="_blank">Blazor</a>.</p>
+<p>You could also create a client here.</p>
+<p>One server can run different "stores", which can a way to organize state (data) in one game, or split one project up into multiple games. Or you can ignore it entirely, it's secondary to the websocket stuff.</p>
+<hr>
+<h2>Active Data Stores</h2>
+<ul>
+    @foreach (var item in DataStoreHub.AllStores)
+    {
+        <li>@DataStoreHub.GetConnectionCount(item) | <a href="./store/@item">@item</a></li>
+    }
+</ul>
+
+@code
+{
+    protected override void OnInitialized()
+    {
+        DataStoreHub.OnConnectionChanged += OnConnectionChanged;
+    }
+
+    private void OnConnectionChanged(string arg1, int arg2)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+}

@@ -1,0 +1,135 @@
+﻿@using System.Text
+@using ws_server_web.Datashare
+@using ws_server_web.Models
+@inject NavigationManager NavManager;
+@inject IJSRuntime JS;
+
+<h1>Server</h1>
+
+<p>Connnection URL: <em id="connection">@ConnectionURL</em></p>
+<p>Active Connected Clients: @_activeConnections</p>
+<p>This is the current data held on the server at the "test" endpoint. It does not refresh automatically. All data is lost when the server crashes or restarts.</p>
+
+Download Current: <button @onclick="OnDownloadButton">Download</button><br />
+Set From JSON:
+<InputFile OnChange="OnLoadFile"/> 
+<hr />
+<button @onclick="OnClearButton">Clear</button>
+
+@if (dataStore == null)
+{
+<p>
+    <em>Loading...</em>
+</p>
+}
+else
+{
+<table class="table">
+    <thead>
+    <tr>
+        <th>Item id</th>
+        <th>Message (utf8)</th>
+    </tr>
+    </thead>
+    <tbody>
+    @foreach (var itemPair in dataStore.GetAllRawData())
+    {
+    <tr>
+        <td>
+            <button @onclick="@(e=>OnRemoveItem(@itemPair.Item1))">x</button>
+        </td>
+        <td>@itemPair.Item1</td>
+        <td>@itemPair.Item2.PrettyPrint()</td>
+    </tr>
+    }
+    </tbody>
+</table>
+}
+<script>
+    window.downloadFileFromStream = async (fileName, contentStreamReference) => {
+      const arrayBuffer = await contentStreamReference.arrayBuffer();
+      const blob = new Blob([arrayBuffer]);
+      const url = URL.createObjectURL(blob);
+      const anchorElement = document.createElement('a');
+      anchorElement.href = url;
+      anchorElement.download = fileName ?? '';
+      anchorElement.click();
+      anchorElement.remove();
+      URL.revokeObjectURL(url);
+    }
+</script>
+
+@code {
+    [Parameter]
+    public string StoreID { get; set; }
+    private string ConnectionURL;
+    private ListDataStore<byte[]> dataStore;
+    private int _activeConnections;
+
+    protected override async Task OnInitializedAsync()
+    {
+        DataStoreHub.TryGetDataStore(StoreID, out dataStore);
+        dataStore.OnItemAdded += OnItemAdded;
+        if (DataStoreHub.Connections.TryGetValue(StoreID, out int v))
+        {
+            _activeConnections = v;
+        }
+        else
+        {
+            _activeConnections = 0;
+        }
+        DataStoreHub.OnConnectionChanged += OnConnectionChanged;
+        //set connection url
+        ConnectionURL = NavManager.BaseUri;
+        ConnectionURL = ConnectionURL.Replace("https", "wss");
+        ConnectionURL = ConnectionURL.Replace("http", "ws");
+        ConnectionURL += StoreID;
+        
+    }
+
+    private void OnConnectionChanged(string id, int newDelta)
+    {
+        if (StoreID == id)
+        {
+            _activeConnections = newDelta;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+
+    private void OnItemAdded(uint arg1, byte[] arg2, string arg3)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnRemoveItem(uint id)
+    {
+        //all webpages can have the same ID, because they always update on any change.
+        dataStore.RemoveItem(id, "webpage");
+    }
+    
+    private async Task OnDownloadButton()
+    {
+        //all webpages can have the same ID, because they always update on any change.
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(dataStore.Serialize()));
+        string filename = StoreID + ".json";//yyyymmdd-hhmmss
+        using var streamRef = new DotNetStreamReference(stream: stream);
+        await JS.InvokeVoidAsync("downloadFileFromStream", filename, streamRef);
+    }
+
+    private async Task OnLoadFile(InputFileChangeEventArgs e)
+    {
+        var stream = e.File.OpenReadStream();
+        var buffer = new byte[stream.Length];
+        var result = await stream.ReadAsync(buffer);
+        var x = dataStore.Deserialize(Encoding.UTF8.GetString(buffer));
+    }
+    
+    private async Task OnClearButton()
+    { 
+        dataStore.Clear("webpage");
+    }
+
+    
+}
