@@ -83,6 +83,12 @@ public class SocketClient : WebSocketController
 			//give up? report? crash? idk
 			return;
 		}
+
+		if (m.clientID == null || string.IsNullOrEmpty(m.clientID))
+		{
+			//invalid request! 
+			Console.WriteLine("Invalid request! Clients should always tell us their ids.");
+		}
 		//remember, this is data coming from the clients to the server. The action hooks (await Send()) are how we send data out to clients.
 		switch (m.type)
 		{
@@ -103,6 +109,7 @@ public class SocketClient : WebSocketController
 					await Send(new Message()
 					{
 						type = MessageType.Error,
+						Data = "I can't give you your own data, I do not have it. send an update first."
 					}.ToJson());
 				}
 				break;
@@ -121,7 +128,7 @@ public class SocketClient : WebSocketController
 					//invalid message!
 					return;
 				}
-
+				//
 				if (m.clientID == ClientID)
 				{
 					return;
@@ -132,23 +139,18 @@ public class SocketClient : WebSocketController
 				_gameData.UpdateServerData(m.ServerData);
 				break;
 			case MessageType.SetClient:
-				//a different client has been changed.
-				//if our game model is that the client doesn't know about other clients, we ignore this message.
-				//otherwise... we just do the same thing as the ClientSendUpdate case, without the guard check, and pass it along.
-				break;
-			case MessageType.ClientSendsUpdate:
-				//remove instruction byte and add.
 				if (ClientID != m.clientID)
 				{
 					//this client is trying to update someone else! should that be allowed? I don't know, this is a sample!
 					_gameData.SetClientData(m.clientID, m.ClientData);
-
 				}
 				else
 				{
 					_gameData.SetClientData(m.clientID, m.ClientData);
 				}
-
+				break;
+			case MessageType.ClientSendsUpdate:
+				//this should be sent from the server to the client. so if we are getting it, something wrong has happened.
 				break;
 			case MessageType.ClientRemoved:
 				if (ClientID != m.clientID)
@@ -172,12 +174,15 @@ public class SocketClient : WebSocketController
 	protected override void OnHandleStart()
 	{
 		DataStoreHub.ConnectionDelta(storeID,1);
+		//we should get an ID that is for-sure unique and give it to the client. instead clients are generating their own.
+		//i am sure nothing bad can ever happen.
 		base.OnHandleStart();
 	}
 
 	protected override void OnHandleEnd()
 	{
 		DataStoreHub.ConnectionDelta(storeID, -1);
+		_gameData.RemoveClient(ClientID);
 		base.OnHandleEnd();
 	}
 }

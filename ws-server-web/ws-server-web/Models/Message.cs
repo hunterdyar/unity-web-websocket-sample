@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using ws_server_web.Datashare;
 
 namespace ws_server_web.Models;
@@ -20,11 +21,17 @@ public enum MessageType
 [Serializable]
 public class Message
 {
+	[JsonInclude]
 	public MessageType type = MessageType.Error;
-	public string clientID = "";
 
-	public ClientData? ClientData;
-	public ServerData? ServerData;
+	[JsonInclude] public string clientID = "";
+
+	[JsonInclude] public ClientData? ClientData { get; set; }
+
+	[JsonInclude] public ServerData? ServerData { get; set; }
+
+	[JsonInclude] public string Data = "";
+
 	
 	public string ToJson()
 	{
@@ -45,6 +52,7 @@ public class Message
 			return new Message()
 			{
 				type = MessageType.Error,
+				Data = "Failed to deserialize client data"
 			};
 		}
 	}

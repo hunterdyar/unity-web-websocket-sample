@@ -1,4 +1,4 @@
-﻿namespace Clayze.Connection
+﻿namespace WSClientSample
 {
 	public enum ConnectionStatus
 	{

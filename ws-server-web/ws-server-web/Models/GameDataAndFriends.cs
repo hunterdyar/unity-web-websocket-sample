@@ -6,7 +6,7 @@ namespace ws_server_web;
 // A single datastore of some type.
 public class GameData
 {
-	public ServerData serverData;
+	public ServerData serverData = new ServerData();
 	public readonly Dictionary<string, ClientData> clientData = new Dictionary<string, ClientData>();//each client's current data.
 	
 	public Action OnNewClient;
@@ -66,16 +66,21 @@ public enum RoundState
 [Serializable]
 public class ServerData
 {
-	public List<string> ClientIDs;
-	public List<(uint id, int data)> Scores;
-	public int Round;
-	public RoundState roundState;//an enum! fancy
+	[JsonInclude] public List<string> ClientIDs = new List<string>();
+
+	[JsonInclude] public List<(uint id, int data)> Scores = new List<(uint id, int data)>();
+
+	[JsonInclude] public int Round;
+
+	[JsonInclude] public RoundState roundState; //an enum! fancy
 }
 
 [Serializable]
 public class ClientData
 {
-	public string clientID;
-	public string message;
-	public int favoriteNumber;
+	[JsonInclude] public string clientID;
+
+	[JsonInclude] public string message;
+
+	[JsonInclude] public int favoriteNumber;
 }
