@@ -1,0 +1,21 @@
+﻿@using System.Text
+@using ws_server_web.Components.Pages
+@using ws_server_web.Datashare
+@using ws_server_web.Models
+@inject NavigationManager NavManager;
+@inject IJSRuntime JS;
+
+<p>Connection Page. Player choose some data or what-have-you.</p>
+<InputText bind-Value="@ConnectionURL"></InputText>
+<button onclick="@DoConnection">Connect to 'test'</button>
+
+@code {
+    [Parameter] public Client context { get; set; }
+    
+    [Parameter]
+    public string ConnectionURL { get; set; }
+    public void DoConnection()
+    {
+        context.OnConnectionChanged(ConnectionURL);
+    }
+}

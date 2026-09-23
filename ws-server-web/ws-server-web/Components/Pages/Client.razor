@@ -1,0 +1,38 @@
+﻿@page "/"
+@using System.Diagnostics
+@using ws_server_web.Datashare
+@using ws_server_web.Models
+@using ws_server_web.Components.Layout
+@attribute [StreamRendering]
+
+<PageTitle>Web Client</PageTitle>
+<h1>WS Client</h1>
+
+
+@if (!Connected)
+{
+    @* <ClientConnect @context="@this"></ClientConnect> *@
+}
+else
+{
+    
+}
+@code
+{
+    string serverurl;
+    bool Connected = false;
+    protected override void OnInitialized()
+    {
+        DataStoreHub.OnConnectionChanged += OnConnectionChanged;
+    }
+
+    private void OnConnectionChanged(string arg1, int arg2)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void OnConnectionChanged(string connecturl)
+    {
+        Connected = true;
+    }
+}
