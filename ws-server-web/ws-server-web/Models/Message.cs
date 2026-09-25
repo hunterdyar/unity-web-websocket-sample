@@ -6,15 +6,9 @@ namespace ws_server_web.Models;
 
 public enum MessageType
 {
-	GetClientData,//the client is asking for names.
-	GetServerData,
-	SetClient,
-	ClientSendsUpdate,
-	ServerUpdate,
-	ClientRemoved,
-	//new client will just be 'client sends update' with a new id. not as robust or debug/loggable... but yeah
-	Event,
-	Error,
+	UpdateTheQuestion = 0,//to server from manager
+	SendQuestionToAllClients = 1,//from server to all the connections
+	Error=10,
 }
 
 //A message is what we send all over.
@@ -23,15 +17,7 @@ public class Message
 {
 	[JsonInclude]
 	public MessageType type = MessageType.Error;
-
-	[JsonInclude] public string clientID = "";
-
-	[JsonInclude] public ClientData? ClientData { get; set; }
-
-	[JsonInclude] public ServerData? ServerData { get; set; }
-
 	[JsonInclude] public string Data = "";
-
 	
 	public string ToJson()
 	{

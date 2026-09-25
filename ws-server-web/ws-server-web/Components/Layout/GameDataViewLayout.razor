@@ -20,61 +20,9 @@
 }
 else
 {
-    <h2>Server</h2>
-    if (_gameData.serverData != null)
-    {
-        <ul>
-            <li>Round: @_gameData.serverData.Round</li>
-            <li>RoundState: @_gameData.serverData.roundState.ToString()</li>
-        </ul>
-        <p>Scores</p>
-        <ul>
-            @foreach (var score in _gameData.serverData.Scores)
-        {
-                <li>@score.id: @score.data</li>
-            }
-        </ul>
-    }
-    else
-    {
-        <p>No server data</p>
-    }
-
-    <h2>Clients</h2>
-<table class="table">
-    <thead>
-    <tr>
-        <th>Client ID</th>
-        <th>Favorite Number</th>
-        <th>Message (utf8)</th>
-    </tr>
-    </thead>
-    <tbody>
-    @foreach (var cd in _gameData.clientData.Values)
-    {
-    <tr>
-        <td>@cd.clientID</td>
-        <td>@cd.favoriteNumber</td>
-        <td>@cd.message</td>
-    </tr>
-    }
-    </tbody>
-</table>
+    <h2>Question</h2>
+    <p>@_gameData.CurrentQuestion</p>
 }
-<script>
-    //todo: this doesn't work yet.
-    window.downloadFileFromStream = async (fileName, contentStreamReference) => {
-      const arrayBuffer = await contentStreamReference.arrayBuffer();
-      const blob = new Blob([arrayBuffer]);
-      const url = URL.createObjectURL(blob);
-      const anchorElement = document.createElement('a');
-      anchorElement.href = url;
-      anchorElement.download = fileName ?? '';
-      anchorElement.click();
-      anchorElement.remove();
-      URL.revokeObjectURL(url);
-    }
-</script>
 
 @code {
     [Parameter]
@@ -92,8 +40,7 @@ else
             return;
         }
 
-        _gameData.OnClientChanged += OnClientChanged;
-        _gameData.OnServerChanged += OnServerChanged;
+        _gameData.OnQuestionUpdated += OnQuestionUpdated;
         if (DataStoreHub.Connections.TryGetValue(StoreID, out int v))
         {
             _activeConnections = v;
@@ -111,14 +58,9 @@ else
         
     }
 
-    private void OnServerChanged()
+    private void OnQuestionUpdated()
     {
-        //just brute refresh the whole content
-        InvokeAsync(StateHasChanged);
-    }
-
-    private void OnClientChanged()
-    {
+        //redraw the page
         InvokeAsync(StateHasChanged);
     }
 

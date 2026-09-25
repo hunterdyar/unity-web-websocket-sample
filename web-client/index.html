@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WS-js-client</title>
+</head>
+<body>
+<h1>client</h1>
+<div id="connect">
+    <input type="text" id="wsurl" value="ws://localhost:5261/test"/>
+    <button id="doconnect" onclick="connect()">connect</button>
+</div>
+<div id="gameplay">
+    <p>gameplay! Pretend I am the unity question scene:</p>
+    <input type="text" id="questionInput"/>
+    <button id="updateQuestionButton" onclick="updateQuestion()">update q</button>
+    <hr />
+    <p>gameplay! Pretend I am the website client</p>
+    <h3 id="currentQuestionDisplay"></h3>
+</div>
+</body>
+<script>
+    let connection = {
+        ws: null,
+        connected: false,
+    };
+    let data = {
+        type: "Error", //MessageType
+        Data: "",
+    }
+    const gameplaySection = document.getElementById("gameplay");
+    const connectionSection = document.getElementById("connect");
+    const setQuestionInput = document.getElementById("questionInput");
+    const currentQuestionDisplay = document.getElementById("currentQuestionDisplay");
+
+    gameplaySection.style.display = "none";
+
+    function connect() {
+        if(connection.ws != null) {
+            connection.ws.close();
+        }
+        connURL = document.getElementById("wsurl").value.trimStart().trimEnd();
+        console.log("try connect to",connURL);
+        connection.ws = new WebSocket(connURL);
+        connection.ws.onopen = OnOpen;
+        connection.ws.onmessage = OnMessage;
+        connection.ws.onclose = OnClose;
+        connection.ws.onerror = OnError;
+    }
+    function OnOpen(){
+        console.log("connected!");
+        connection.connected = true;
+        gameplaySection.style.display = "block";
+        connectionSection.style.display = "none";
+    }
+    function OnClose(){
+        console.log("disconnected!");
+        connection.connected = false;
+        gameplaySection.style.display = "none";
+        connectionSection.style.display = "block";
+    }
+    function OnMessage(msg) {
+        console.log("got message", msg);
+        var newData = JSON.parse(msg.data);
+        data = newData;
+
+        if(newData.type === 1){//UpdateQuestionToAllClients enum
+            data.type = 1;
+            data.Data = newData.Data;
+            currentQuestionDisplay.innerText = newData.Data;
+        }
+    }
+    function OnError(evt){
+        console.log("error",evt);
+    }
+    function updateQuestion(){
+
+        console.log("updating question...", data)
+        data["Data"] = setQuestionInput.value;
+        data["type"] = 0;//updateTheQuestion
+        var msg = JSON.stringify(data);
+        connection.ws.send(msg);
+    }
+</script>
+</html>
