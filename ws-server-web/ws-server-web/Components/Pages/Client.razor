@@ -11,7 +11,7 @@
 
 @if (!Connected)
 {
-    @* <ClientConnect @context="@this"></ClientConnect> *@
+    <ClientConnect Context="@this"></ClientConnect>
 }
 else
 {
@@ -20,10 +20,13 @@ else
 @code
 {
     string serverurl;
+    string clientID = "";
     bool Connected = false;
+    GameData? _gameData; 
     protected override void OnInitialized()
     {
         DataStoreHub.OnConnectionChanged += OnConnectionChanged;
+        
     }
 
     private void OnConnectionChanged(string arg1, int arg2)
@@ -31,8 +34,44 @@ else
         InvokeAsync(StateHasChanged);
     }
 
-    public void OnConnectionChanged(string connecturl)
+    public void ConnectAsNew(string endpoint, string chosenName)
     {
-        Connected = true;
+        if(DataStoreHub.TryGetDataStore(endpoint, out GameData gd))
+        {
+            SubscribeToEvents(gd);
+            clientID = chosenName;
+            //send event to server.
+            gd.SetClientData(chosenName, new ClientData());
+            Console.WriteLine($"connected to {endpoint}");
+            Connected = true;
+        }else
+        {
+            Console.WriteLine($"connection to {endpoint} failed");
+            Connected = false;
+        }
+        
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void SubscribeToEvents(GameData gd)
+    {
+        if (_gameData != null)
+        {
+            //unsubscribe from old events...
+        }
+
+        _gameData = gd;
+        _gameData.OnClientChanged += OnClientChanged;
+        _gameData.OnServerChanged += OnServerChanged;
+    }
+
+    private void OnServerChanged()
+    {
+        throw new NotImplementedException();
+    }
+
+    private void OnClientChanged()
+    {
+        
     }
 }

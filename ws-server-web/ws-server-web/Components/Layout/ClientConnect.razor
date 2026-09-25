@@ -5,17 +5,34 @@
 @inject NavigationManager NavManager;
 @inject IJSRuntime JS;
 
-<p>Connection Page. Player choose some data or what-have-you.</p>
-<InputText bind-Value="@ConnectionURL"></InputText>
-<button onclick="@DoConnection">Connect to 'test'</button>
+<p>Connection flow. Player choose some data or what-have-you.</p>
+<br />
+<InputText @bind-Value="chosenName"></InputText>
+<InputSelect TValue="string" @bind-Value="@endpoint" >
+    <option selected="true">test</option>
+    <option>ws</option>
+    <option>a</option>
+    <option>b</option>
+    <option>c</option>
+</InputSelect>
+<br />
+<button onclick="@DoConnection">Connect to '@endpoint'</button>
 
 @code {
-    [Parameter] public Client context { get; set; }
-    
-    [Parameter]
-    public string ConnectionURL { get; set; }
+    private string chosenName = "";
+    private string endpoint = "test";
+    //parent
+    [Parameter] public Client Context { get; set; }
+
+    [Parameter] public string ConnectionURL { get; set; } = "";
     public void DoConnection()
     {
-        context.OnConnectionChanged(ConnectionURL);
+        if (chosenName == "")
+        {
+            //error!
+            return;
+        }
+        Console.Write($"Do Connection to endpoint {endpoint}");
+        Context.ConnectAsNew(endpoint, chosenName);
     }
 }
